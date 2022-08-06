@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import 'bootstrap/dist/css/bootstrap.min.css'
 //import './App.css';
 const FONT_S = 20
-let executionTimeout = 0
+let executionTimeout = 5
 let stop = false
 const HELLO_WORLD = `
 [ This program prints "Hello World!" and a newline to the screen, its
@@ -301,7 +301,7 @@ function App() {
             </button>
           </div>
             <label className="form-label" htmlFor="timeout">Execution speed:</label>
-          <input id="timeout" className="form-range" type="range" min={0} max={2000} onInput={(e:any)=>executionTimeout=e.target.valueAsNumber}></input>
+          <input id="timeout" className="form-range" type="range" value = {executionTimeout} min={0} max={1000} onInput={(e:any)=>executionTimeout=e.target.valueAsNumber}></input>
         </div>
       </div>
       <div className='card'>
@@ -326,4 +326,5 @@ function App() {
 
 //TODO Adicionar stop como o fim do slider de velocidade
 //TODO Adicionar debug char q dexa lento
+// TODO mudar scala do slider pra log
 export default App
