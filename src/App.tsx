@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import './App.css';
+import React, { useState } from 'react'
+import 'bootstrap/dist/css/bootstrap.min.css'
+//import './App.css';
 const FONT_S = 20
-const TIMEOUT = 20
-const HELLO_WORLD =
-  `
+let executionTimeout = 0
+let stop = false
+const HELLO_WORLD = `
 [ This program prints "Hello World!" and a newline to the screen, its
   length is 106 active command characters [it is not the shortest.]
  
@@ -48,7 +49,6 @@ Pointer :   ^
 `
 
 const BF_CHARACTERS = [
-
   '>', //Increment the data pointer (to point to the next cell to the right).
   '<', //Decrement the data pointer (to point to the next cell to the left).
   '+', //Increment (increase by one) the byte at the data pointer.
@@ -56,40 +56,38 @@ const BF_CHARACTERS = [
   '.', //Output the byte at the data pointer.
   ',', //Accept one byte of input, storing its value in the byte at the data pointer.
   '[', //If the byte at the data pointer is zero, then instead of moving the instruction pointer forward to the next command, jump it forward to the command after the matching ] command.
-  ']' //If the byte at the data pointer is nonzero, then instead of moving the instruction pointer forward to the next command, jump it back to the command after the matching [ command.
+  ']', //If the byte at the data pointer is nonzero, then instead of moving the instruction pointer forward to the next command, jump it back to the command after the matching [ command.
 ]
 
 export function findBracketPair(code: string, i: number): number {
   //TODO refactor
   const char = code[i]
-  if(char == ']'){
+  if (char == ']') {
     let closeBrackets = 1
-    while(i >= 0){
+    while (i >= 0) {
       i--
-      if(code[i] == ']'){
-        closeBrackets ++
-
+      if (code[i] == ']') {
+        closeBrackets++
       }
-      if(code[i] == '['){
-        closeBrackets --
-        if(closeBrackets == 0){
+      if (code[i] == '[') {
+        closeBrackets--
+        if (closeBrackets == 0) {
           return i
         }
       }
     }
     return -1
   }
-  if(char == '['){
+  if (char == '[') {
     let openBrackets = 1
-    while(i < code.length-1){
+    while (i < code.length - 1) {
       i++
-      if(code[i] == '['){
+      if (code[i] == '[') {
         openBrackets++
-
       }
-      if(code[i] == ']'){
-        openBrackets --
-        if(openBrackets == 0){
+      if (code[i] == ']') {
+        openBrackets--
+        if (openBrackets == 0) {
           return i
         }
       }
@@ -101,23 +99,31 @@ export function findBracketPair(code: string, i: number): number {
 }
 
 function App() {
-  const [userCode, setUserCode] = useState(HELLO_WORLD) //we treat code as a state so we can update the clanCode live
+  const [userCode, setUserCode] = useState(
+    localStorage.getItem('code') ?? HELLO_WORLD
+  ) //we treat code as a state so we can update the clanCode live
   const [memory, setMemory] = useState([0])
   let [pointerI, setPointerI] = useState(0)
+  let [pointerIS, setPointerIS] = useState(0)
   let [executionI, setExecutionI] = useState(0)
   let [output, setOutput] = useState('')
+  let [inputString, setInputString] = useState('')
 
   function inputHandler(e: React.FormEvent) {
     const target = e.target as HTMLTextAreaElement
     const codigo = target.value
     setUserCode(codigo)
+    localStorage.setItem('code', codigo)
   }
   const code = Array.from(userCode)
-    .filter(x => BF_CHARACTERS.includes(x))
+    .filter((x) => BF_CHARACTERS.includes(x))
     .join('')
 
   function timeout(msTimeout: number) {
-    return new Promise(resolve => setTimeout(resolve, msTimeout))
+    return new Promise((resolve) => setTimeout(resolve, msTimeout))
+  }
+  function stopExecution() {
+    stop = true
   }
 
   async function runCode(/*e: React.MouseEvent<HTMLButtonElement, MouseEvent>*/) {
@@ -125,14 +131,19 @@ function App() {
     const mem = memory
     //console.log('memory', memory[0])
     let p = pointerI
-    let exit = 1000
+    let pIS = pointerIS
+    let exit = 10 ** 5
     for (let i = 0; i < code.length; i++) {
+      if (stop) {
+        stop = false
+        break
+      }
       exit--
       if (exit <= 0) {
         console.error('exit')
         break
       }
-      const char = code[i];
+      const char = code[i]
       //console.log('char',char)
       switch (char) {
         case '+':
@@ -150,7 +161,7 @@ function App() {
         case '[':
           //console.log('memP', mem[p])
           if (mem[p] === 0) {
-            i = findBracketPair(code,i) // Por algum mutivo tinha colocado +1 aki
+            i = findBracketPair(code, i) // Por algum mutivo tinha colocado +1 aki
             //TODO more efficient would be to go in a loop with i backwards of forwards
             //i = code.slice(i).indexOf(']') + i + 1
             //console.log('forward to',i)
@@ -158,16 +169,23 @@ function App() {
           break
         case ']':
           if (mem[p] !== 0) {
-            i = findBracketPair(code,i)
+            i = findBracketPair(code, i)
             //TODO more efficient would be to go in a loop with i backwards of forwards
             //i = code.slice(0, i).lastIndexOf('[')
             //console.log('backward to',i)
           }
           break
+        case ',':
+          if(pIS > inputString.length -1){ 
+            mem[p] = 0 
+            break
+            }
+          mem[p] = inputString.charCodeAt(pIS)
+          pIS++
+          break
         case '.':
           out = out + String.fromCharCode(mem[p])
           console.log(String.fromCharCode(mem[p]))
-
       }
 
       //if (char == '+') {
@@ -180,59 +198,132 @@ function App() {
       }
       if (p < 0) {
         alert('pointer is less than 0')
+        stopExecution()
         p = 0
       }
       //}
       setMemory(Array.from(mem))
       setPointerI(p)
+      setPointerIS(pIS)
       setExecutionI(i)
       setOutput(out)
 
-      await timeout(TIMEOUT)
-
+      if (executionTimeout > 0) {
+        await timeout(executionTimeout)
+      }
     }
-
   }
-
 
   const memoryElements = memory.map((x, i) => (
     <span key={i}>
-      {i === pointerI ? <b>{x}</b> : x}{i < memory.length - 1 ? ',' : ''}
-    </span >
+      {i === pointerI ? <b>{x}</b> : x}
+      {i < memory.length - 1 ? ',' : ''}
+    </span>
   ))
   function clearState() {
+    stopExecution()
     setMemory([0])
     setPointerI(0)
+    setPointerIS(0)
+    setOutput('')
   }
 
-  const codeElement = <span>{Array.from(code).map((c, i) => {
-    if (i === executionI) {
-      ////console.log('executionI',executionI)
-      return <b style={{ fontSize: (FONT_S + 3) + 'px' }} key={i}>{c}</b>
-    } else {
-      return <span key={i}>{c}</span>
-    }
-
-  })}</span>
+  const codeElement = (
+    <span>
+      {Array.from(code).map((c, i) => {
+        if (i === executionI) {
+          ////console.log('executionI',executionI)
+          return (
+            <b style={{ fontSize: FONT_S + 3 + 'px' }} key={i}>
+              {c}
+            </b>
+          )
+        } else {
+          return <span key={i}>{c}</span>
+        }
+      })}
+    </span>
+  )
 
   return (
-    <div className="App" style={{ margin: 'auto', maxWidth: '800px' }}>
-      <textarea defaultValue={HELLO_WORLD} onInput={inputHandler} onSubmit={runCode} ></textarea>
+    <div className='App container pt-5'>
+      <div className='card'>
+        <div className='card-header'>
+          <label className='form-label' htmlFor='input-code'>
+            <h4>BrainFuck:</h4>
+          </label>
+        </div>
+        <textarea
+          id='input-code'
+          rows={15}
+          className='form-control'
+          defaultValue={localStorage.getItem('code') ?? HELLO_WORLD}
+          onInput={inputHandler}
+          onSubmit={runCode}
+        ></textarea>
+      </div>
 
-      <h4> Code: </h4>
-      <p style={{ fontSize: FONT_S + 'px' }}>
-        {codeElement}  <button onClick={runCode}>Run</button> <button onClick={clearState}>Reset</button>
-      </p>
-      <h4> Memory: </h4>
-      <p>
-        {memoryElements}
-      </p>
-      <h4>Output</h4>
-      <p>
-        {output}
-      </p>
+      <div className='card'>{/*TODO make input chars before pointerIS gray*/}
+        <div className='card-header'>
+          <label className='form-label' htmlFor='input-string'>
+            <h4>Input:</h4>
+          </label>
+        </div>
+        <textarea
+          id='input-string'
+          rows={2}
+          className='form-control'
+          onInput={(e:any)=>setInputString(e.target.value)}
+          value={inputString}
+          onSubmit={runCode}
+        ></textarea>
+      </div>
+
+      <div className='card'>
+        <div className='card-header'>
+          <h5> Code: </h5>
+        </div>
+        <div className='card-body'>
+          <p>{codeElement}</p>
+          <div
+            className='container btn-group'
+            role='group'
+            aria-label='Basic outlined example'
+          >
+            <button className='btn btn-outline-primary' onClick={runCode}>
+              Run
+            </button>
+            <button className='btn btn-outline-primary' onClick={clearState}>
+              Reset
+            </button>
+            <button className='btn btn-outline-primary' onClick={stopExecution}>
+              Stop
+            </button>
+          </div>
+            <label className="form-label" htmlFor="timeout">Execution speed:</label>
+          <input id="timeout" className="form-range" type="range" min={0} max={2000} onInput={(e:any)=>executionTimeout=e.target.valueAsNumber}></input>
+        </div>
+      </div>
+      <div className='card'>
+        <div className='card-header'>
+          <h5>State</h5>
+        </div>
+
+        <ul>
+          <li>
+            <h6> Memory: </h6>
+            <p>{memoryElements}</p>
+          </li>
+          <li>
+            <h6>Output</h6>
+            <p>{output}</p>
+          </li>
+        </ul>
+      </div>
     </div>
-  );
+  )
 }
 
-export default App;
+//TODO Adicionar stop como o fim do slider de velocidade
+//TODO Adicionar debug char q dexa lento
+export default App
